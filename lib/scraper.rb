@@ -17,8 +17,8 @@ class Scraper
 
   attr_accessor :options, :results, :url, :detail_page
 
-  def initialize
-    @options = DEFAULT_OPTIONS
+  def initialize options = nil
+    @options = options || DEFAULT_OPTIONS
     @url = @options[:base_url]
     @results = []
   end
@@ -34,13 +34,17 @@ class Scraper
   # @param type [Symbol] the HTML attribute type for the recurring parent element on the page
     # ex: :class or :id
   def run
-    page = scrape_page(@options[:base_url])
+    if @options[:get_next_page]
+      page = scrape_page(@options[:base_url])
 
-    @options[:per_page] = page.css(parent_target).count
-    @options[:last_page] = get_last_page(@options[:total], @options[:per_page])
-
-    paginated_get
+      @options[:per_page] = page.css(parent_target).count
+      paginated_get
+    else
+      get_next_page
+    end
   end
+
+  private
 
   # Specify the attribute type format needed for nokogiri data parsing
   #
@@ -72,16 +76,8 @@ class Scraper
     end
   end
 
-  # @param total [Integer] the total number of elements in the full data set
-  # @param per_page [Integer] the number of elements per page
-  def get_last_page(total, per_page)
-    (total.to_f/per_page.to_f).ceil
-  end
-
   def paginated_get
-    return unless @options[:last_page]
-
-    while @options[:current_page] <= @options[:last_page]
+    while @options[:per_page] > 0
       get_next_page
       @options[:current_page] += 1
     end
@@ -91,6 +87,7 @@ class Scraper
     page_url = [@url, @options[:path], '?', @options[:param], '=', @options[:current_page]].join
 
     data = scrape_page(page_url).css(parent_target)
+    @options[:per_page] = data.count
 
     format_results(data)
   end
@@ -105,23 +102,27 @@ class Scraper
       image_url: nil
     }
 
-    crawl_data[:title] = page_item.css('a.storylink').text
-    crawl_data[:url] = page_item.css('a.storylink').first.attributes['href'].value
+    story_link = page_item.css('a.storylink').first.attributes['href'].value
 
-    detail_page = scrape_page(crawl_data[:url])
+    Rails.cache.fetch(Digest::MD5.hexdigest(story_link), expires_in: 1.hour) do
+      crawl_data[:url] = story_link
+      crawl_data[:title] = page_item.css('a.storylink').text
 
-    unless detail_page.nil?
-      meta_description = detail_page.css("meta[property='og:description']")
-      if meta_description.any?
-        crawl_data[:description] =  meta_description.first.attributes["content"].value.truncate(1024)
+      detail_page = scrape_page(crawl_data[:url])
+
+      unless detail_page.nil?
+        meta_description = detail_page.css("meta[property='og:description']")
+        if meta_description.any?
+          crawl_data[:description] =  meta_description.first.attributes["content"]&.value&.truncate(1024)
+        end
+
+        meta_image = detail_page.css("meta[property='og:image']")
+        if meta_image.any?
+          crawl_data[:image_url] = meta_image.first.attributes["content"].value
+        end
       end
 
-      meta_image = detail_page.css("meta[property='og:image']")
-      if meta_image.any?
-        crawl_data[:image_url] = meta_image.first.attributes["content"].value
-      end
+      crawl_data
     end
-
-    crawl_data
   end
 end
