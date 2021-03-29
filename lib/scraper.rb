@@ -8,6 +8,7 @@ class Scraper
     total: 30,
     last_page: 4,
     current_page: 1,
+    get_next_page: false,
     parent: {
       element: 'tr',
       name: 'athing',
@@ -69,7 +70,6 @@ class Scraper
 
   def scrape_page(url)
     begin
-      puts url
       Nokogiri::HTML(HTTParty.get(url, verify_peer: false))
     rescue Exception => e
       nil
