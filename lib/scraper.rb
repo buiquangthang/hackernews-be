@@ -27,13 +27,6 @@ class Scraper
   # This method will trigger our paginated scraper. It will get the first page result,
   # And use the specified parent element, identifier and attribute type to set the per page/ last page values if necessary.
   # and the last page for our options. Then we will trigger our paginated get with this new information.
-  #
-  # @param element [String] the HTML element for the recurring parent element on the page
-    # ex: 'div' or 'h1'
-  # @param name [String] the class or id name we can target on the element.
-    # ex: 'listingCard' if the class name for the element we want to target is 'listingCard'
-  # @param type [Symbol] the HTML attribute type for the recurring parent element on the page
-    # ex: :class or :id
   def run
     if @options[:get_next_page]
       page = scrape_page(@options[:base_url])
@@ -57,7 +50,6 @@ class Scraper
   end
 
   # Set the parent element for nokogiri parsing
-  # ex: 'div.listingCard'
   def parent_target
     parent = @options[:parent]
 
@@ -86,17 +78,23 @@ class Scraper
   def get_next_page
     page_url = [@url, @options[:path], '?', @options[:param], '=', @options[:current_page]].join
 
-    data = scrape_page(page_url).css(parent_target)
-    @options[:per_page] = data.count
+    page_data = scrape_page(page_url)
+    url_data = page_data.css(parent_target)
+    subtext_data = page_data.css('td.subtext')
 
-    format_results(data)
+    @options[:per_page] = url_data.count
+
+    format_results(url_data, subtext_data)
   end
 
-  def format_results(page_items)
-    page_items.each { |page_item| @results << format_result(page_item) }
+  def format_results(page_items, subtext_items)
+    page_items.each_with_index do |page_item, index|
+      subtext_item = subtext_items[index]
+      @results << format_result(page_item, subtext_item)
+    end
   end
 
-  def format_result(page_item)
+  def format_result(page_item, subtext_item)
     crawl_data = {
       description: nil,
       image_url: nil
@@ -107,6 +105,9 @@ class Scraper
     Rails.cache.fetch(Digest::MD5.hexdigest(story_link), expires_in: 1.hour) do
       crawl_data[:url] = story_link
       crawl_data[:title] = page_item.css('a.storylink').text
+      crawl_data[:author] = subtext_item.css('.hnuser').first.text
+      crawl_data[:score] = subtext_item.css('.score').first.text
+      crawl_data[:created_at] = subtext_item.css('span.age a').first.text
 
       detail_page = scrape_page(crawl_data[:url])
 
