@@ -18,7 +18,7 @@ class ArticlesController < ApplicationController
       param: 'p',
       page: 1,
       per_page: 30,
-      current_page: current_page.to_i || 1,
+      current_page: current_page.nil? ? 1 : current_page.to_i,
       get_next_page: false,
       parent: {
         element: 'tr',
