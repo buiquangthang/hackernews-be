@@ -1,24 +1,11 @@
 # README
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+This project use to crawl data from https://news.ycombinator.com/best
 
-Things you may want to cover:
+API url: https://hackernews-bbe.herokuapp.com/articles
 
-* Ruby version
+To run RSpec:
+**bundle exec rspec**
 
-* System dependencies
-
-* Configuration
-
-* Database creation
-
-* Database initialization
-
-* How to run the test suite
-
-* Services (job queues, cache servers, search engines, etc.)
-
-* Deployment instructions
-
-* ...
+Note: when you run testing in the first time. It will take a long time to get request.
+But in the next time, it will run faster, cause request have been capture by vcr
